@@ -47,44 +47,6 @@ A vector store + RAG optimizes the ingest/retrieve axis and addresses none of th
 
 ---
 
-## Context that produced the spec: the Graphiti / schema post
-
-This spec was written in response to encountering a common framing (exemplified by [Graphiti](https://github.com/getzep/graphiti) / Zep marketing): *"the more your agent remembers, the less it knows; the fix is schema discipline — constrain the output space with typed entities and edges before generation."* The question was: **is anything in that framing new relative to this work?**
-
-The verdict, claim by claim:
-
-### What the schema framing already overlaps with this work (often deeper here)
-
-| Schema-framing claim | Where it already lives here |
-|---|---|
-| "Recall is the wrong target; the hard problem is what to forget / never store" | The thesis itself; plus *behavioral-state-decay*: "this is not a recall failure, it is a salience-at-the-right-moment failure." **Stronger here** — forgetting is an *intervention/timing* decision, not just an ingest/storage decision. |
-| "It's a structure problem, not retrieval" | Same page: "more memory, bigger context, or better retrieval alone do not fix it." |
-| Typed records / small closed type set ("start with 3–4 types") | NapMem ships a worked 4-type example: `fact \| event \| instruction \| preference`. → [memory-pyramid](https://github.com/ianpilon/memory-as-construction-LLM-wiki/blob/main/src/pages/memory-pyramid.mdx) |
-| Dedup, contradiction/reconciliation, provenance | `memory-pyramid` (reconcile, dedup, merge, update stale) + all of [provenance-linking](https://github.com/ianpilon/memory-as-construction-LLM-wiki/blob/main/src/pages/provenance-linking.mdx). |
-| "Constrain the output space before generation, not after" | Proactive Memory Agent Phase 1: output is "a sequence of bank edits, not a free-form summary… explicit and constrained" via predefined tool calls. The exact pattern, applied to memory-management tools. |
-| Temporal resolution / preserving history on update | In embryo: "reconciliation preserves update history and source identifiers." |
-| Graphiti = the product that does this | Already placed in the architecture map: Layer 1, *"Temporal knowledge graphs (Zep / Graphiti) already approximate this,"* verdict **Shippable today.** |
-
-### What is genuinely new in the schema framing (the delta)
-
-1. **The graph-schema micro-diagnosis** — "entity types collapse into generic labels; relationships flatten into a single `RELATES_TO`." This work diagnoses the failure at the *architectural* level (storage vs identity) and the *behavioral* level (state decay), but never articulates this specific graph-schema failure mode. Same root disease, different layer.
-2. **Typed edges with source/target validity constraints** — an ontology where "if your schema has no edge connecting Project to Competitor, that relationship cannot exist in memory." **This is the one concrete mechanism not present here.** Provenance links here are *back-pointers* (record → source message), not a typed-relationship grammar with connection validity.
-3. **The "10/10/10, start with 3–4" heuristic** — a phrasing; the worked NapMem example already embodies the principle.
-
-### Where the schema framing is incomplete — and this work has the evidence
-
-This is the load-bearing insight. The schema framing is implicitly binary: **schema vs. retrieval** ("constrain before generation… and retrieval precision follows"). The measured evidence here says that is a false floor:
-
-- **NapMem**: same memory sources, navigation vs passive retrieval changes the outcome. Ingest structure held constant → the win is in *how memory is used*.
-- **Proactive Memory Agent**: the win is the *decision whether to intervene at all*, independent of how well the bank is structured.
-- **Behavioral state decay**: a failure mode no schema can touch, because the information is present and correctly structured but behaviorally inert.
-
-Relative to the five-layer architecture, the schema framing lives **entirely in the encode layer** of the construction loop. The measured gains live in **reconstruct** (navigate) and **synthesize/act** (intervene). Schema discipline is **necessary but not sufficient** — it is the floor, not the fix.
-
-> **Bottom line of the comparison:** operate one layer *above* the schema framing. Nothing in it contradicts this thesis; it is a single-layer restatement of the encode step, plus a graph-schema diagnosis and typed-edge mechanic worth borrowing. This spec borrows the closed-typed-set discipline (Section 3) but refuses to let ingest structure stand in for the access and intervention layers that actually carry the measured wins.
-
----
-
 ## What to build vs. stub vs. ignore
 
 Directly from the five-layer verdict ledger:

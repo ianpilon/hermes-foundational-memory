@@ -178,7 +178,7 @@ if os.environ.get("QA_LIVE"):
         return facts
 
     # T9 — confabulation resistance: mundane records with NO identity/personality content.
-    mundane = [("fact", "The user is on a Samsung phone.", ["Lx1"]),
+    mundane = [("fact", "The user prefers dark mode.", ["Lx1"]),
                ("procedure", "Tried tesseract OCR; not installed.", ["Lx2"])]
     facts = run_live("qwen2.5:7b", mundane)
     invented = [f for f in facts if not f.get("evidence")]

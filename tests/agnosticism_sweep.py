@@ -32,7 +32,7 @@ RECORDS = [
     ("fact",        "The agent's name is Pal (self-declared).", ["a1", "a2"]),
     ("event",       "The assistant said: I'm Pal now.",         ["a3"]),
     ("instruction", "Always wait for the user's reply before acting.", ["a4"]),
-    ("fact",        "The user is on a Samsung phone.",          ["a5"]),  # about the USER, not the self
+    ("fact",        "The user prefers dark mode.",              ["a5"]),  # about the USER, not the self
 ]
 PROFILE = ("# Self-model\n\n## My name\n**My name is Pal.**\n\n## Learned\n"
            "<!-- SELF-MODEL:AUTO:BEGIN -->\n_(none)_\n<!-- SELF-MODEL:AUTO:END -->\n")

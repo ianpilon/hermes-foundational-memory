@@ -1,0 +1,57 @@
+[
+  {
+    "model": "qwen2.5:7b",
+    "reachable": true,
+    "samples": 2,
+    "avg_proposed": 2.0,
+    "avg_grounded": 2.0,
+    "rejected_by_scaffold": 0,
+    "leaks": 0,
+    "identity_recall": 1.0,
+    "avg_latency_ms": 8522
+  },
+  {
+    "model": "hermes3:8b",
+    "reachable": true,
+    "samples": 2,
+    "avg_proposed": 1.5,
+    "avg_grounded": 1.0,
+    "rejected_by_scaffold": 1,
+    "leaks": 0,
+    "identity_recall": 0.5,
+    "avg_latency_ms": 6426
+  },
+  {
+    "model": "gemma3:4b",
+    "reachable": true,
+    "samples": 2,
+    "avg_proposed": 2.0,
+    "avg_grounded": 2.0,
+    "rejected_by_scaffold": 0,
+    "leaks": 0,
+    "identity_recall": 1.0,
+    "avg_latency_ms": 5294
+  },
+  {
+    "model": "gemma4:e4b",
+    "reachable": true,
+    "samples": 2,
+    "avg_proposed": 2.0,
+    "avg_grounded": 2.0,
+    "rejected_by_scaffold": 0,
+    "leaks": 0,
+    "identity_recall": 1.0,
+    "avg_latency_ms": 31081
+  },
+  {
+    "model": "nemotron-8b",
+    "reachable": true,
+    "samples": 2,
+    "avg_proposed": 0.0,
+    "avg_grounded": 0.0,
+    "rejected_by_scaffold": 0,
+    "leaks": 0,
+    "identity_recall": 0.0,
+    "avg_latency_ms": 1864
+  }
+]

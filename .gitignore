@@ -3,3 +3,8 @@ node_modules/
 *.log
 .env*
 !.env.example
+__pycache__/
+*.pyc
+.fm_token
+foundational_memory/
+*.bak.*

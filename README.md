@@ -1,5 +1,7 @@
 # Hermes Foundational Memory
 
+> 🛠️ **Update — this spec is now implemented, tested, and running.** See **[IMPLEMENTATION.md](./IMPLEMENTATION.md)** for the working provider, the live viewer, the invariant QA (15/15), and a 5-model **model-agnosticism proof** (0 memory leaks across every proposer; recall model-dependent). Everything below remains the original thesis and reasoning, unchanged.
+
 A paste-ready spec for giving **Hermes** (an agent running on a Mac mini) a foundational memory — derived from and grounded in the *Memory as Construction* thesis.
 
 This repo exists to **preserve the context** that produced the spec, so it isn't lost when a chat session closes. The spec itself is in [`agent-memory-spec.md`](./agent-memory-spec.md). Everything below is the reasoning behind it.

@@ -1,0 +1,7 @@
+name: foundational
+version: 0.3.0
+description: "Foundational Memory — memory-as-construction: typed record bank (L1 raw / L2 typed / L3 tracks / L4 self-model) with a qwen sidecar (Phase 1), selective silence-aware intervention (Phase 2), a per-cycle decision log (cycles.jsonl), and GROUNDED L4 self-model evolution (evidence-required, corroboration-gated, drift-resistant). L3 tracks + trained policy remain frontier."
+pip_dependencies: []
+requires_env: []
+hooks:
+  - on_session_end

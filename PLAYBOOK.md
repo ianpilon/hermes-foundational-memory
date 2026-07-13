@@ -19,8 +19,8 @@ This playbook installs **memory only**. It assumes the mini already has a workin
 - **Ollama running** with the memory-role model. Default `qwen2.5:7b` (installer pulls it if missing).
 - Your action brain configured (DeepSeek cloud in this fleet — unaffected by memory).
 
-If the base isn't up yet, stand it up first per `~/Desktop/hermes-mac-mini-MEMORY.md`
-(the fleet running log: model config, Twilio/SMS, cloudflared tunnel, launchd).
+If the base isn't up yet, stand it up first per your own fleet runbook
+(model config, Twilio/SMS, cloudflared tunnel, launchd) — this playbook covers the memory layer only.
 
 > **Transport note (per new mini):** memory is independent of how you reach the agent. But a
 > NEW mini that should receive SMS needs its OWN public entry point — a distinct cloudflared

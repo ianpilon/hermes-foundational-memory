@@ -100,8 +100,11 @@
   .turn{display:grid;grid-template-columns:54px 1fr;gap:11px;font-size:13px;align-items:start}
   .turn .who{font-family:var(--mono);font-size:10px;letter-spacing:.05em;text-transform:uppercase;padding-top:3px;color:var(--ink-3)}
   .turn.user .who{color:var(--signal)}.turn .txt{color:var(--ink-2)}.turn.user .txt{color:var(--ink)}
-  .cols{display:grid;grid-template-columns:1.3fr 1fr;gap:16px}@media(max-width:760px){.cols{grid-template-columns:1fr}}
+  .cols{display:grid;grid-template-columns:1.3fr 1fr;gap:16px;align-items:start}@media(max-width:760px){.cols{grid-template-columns:1fr}}
   .panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:18px 20px}
+  .panel.self{max-height:66vh;overflow-y:auto;overflow-x:hidden}
+  .panel.self::-webkit-scrollbar{width:9px}
+  .panel.self::-webkit-scrollbar-thumb{background:var(--line);border-radius:5px;border:2px solid var(--surface)}
   .panel h3{font-family:var(--mono);font-size:11.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);margin:0 0 12px}
   .self h4{font-family:var(--mono);font-size:11.5px;color:var(--signal);margin:14px 0 5px}.self p{margin:0 0 7px;font-size:13.5px;color:var(--ink-2)}
   .self li{font-size:13px;color:var(--ink-2);margin:3px 0}.self code{font-family:var(--mono);font-size:11.5px;background:var(--surface-2);border:1px solid var(--line-2);padding:1px 5px;border-radius:5px;color:var(--ink)}

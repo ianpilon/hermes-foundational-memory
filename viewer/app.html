@@ -82,6 +82,11 @@
   .bar-row .name{font-weight:600;font-size:14px}.bar-row .name small{display:block;font-weight:400;font-size:11.5px;color:var(--ink-2);margin-top:2px}
   .bar-row .cnt{font-family:var(--mono);font-size:20px;font-weight:600;font-variant-numeric:tabular-nums}
   .records{display:grid;gap:12px}
+  .records.scroll{max-height:62vh;overflow-y:auto;overflow-x:hidden;padding:2px 8px 2px 2px;margin-right:-4px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface-2)}
+  .records.scroll::-webkit-scrollbar{width:9px}
+  .records.scroll::-webkit-scrollbar-thumb{background:var(--line);border-radius:5px;border:2px solid var(--surface-2)}
+  .rec-count{font-family:var(--mono);font-size:11px;letter-spacing:.04em;color:var(--ink-3);margin:-4px 0 12px}
+  .rec-count b{color:var(--ink-2);font-variant-numeric:tabular-nums}
   .rec{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;border-left:3px solid var(--tc)}
   .rec-top{padding:15px 17px}
   .badge{display:inline-flex;align-items:center;gap:7px;font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;font-weight:600;color:var(--tc);background:color-mix(in srgb,var(--tc) 12%,transparent);border:1px solid color-mix(in srgb,var(--tc) 32%,transparent);padding:3px 9px;border-radius:999px}
@@ -143,7 +148,7 @@
         <span class="k" style="color:var(--ink-3)">node size ∝ records saved</span></div>
         <div class="track" id="track"></div><div class="tl-stats" id="tl-stats"></div></div></section>
     <section><div class="sec-h"><span class="n">03</span> The construction funnel</div><div class="funnel" id="funnel"></div></section>
-    <section><div class="sec-h"><span class="n">04</span> Durable records &amp; their evidence</div><div class="records" id="records"></div></section>
+    <section><div class="sec-h"><span class="n">04</span> Durable records &amp; their evidence</div><div class="rec-count" id="rec-count"></div><div class="records" id="records"></div></section>
     <section><div class="sec-h"><span class="n">05</span> The self &amp; the private view</div>
       <div class="cols"><div class="panel self" id="selfmodel"></div>
         <div><div class="panel selfview"><h3>Private self-view</h3><div class="txt" id="selfview-txt">—</div><div class="cap" id="selfview-cap"></div></div>
@@ -165,6 +170,7 @@ function renderSelf(md){
   const inline=s=>esc(s).replace(/\*\*(.+?)\*\*/g,"<b>$1</b>").replace(/\*(.+?)\*/g,"<em>$1</em>").replace(/`([^`]+)`/g,"<code>$1</code>");
   let html="",inList=false;
   for(let ln of (md||"").split("\n")){
+    if(/^\s*<!--/.test(ln))continue;
     if(/^#\s/.test(ln)||/^_.*_\s*$/.test(ln))continue;
     if(/^##\s/.test(ln)){if(inList){html+="</ul>";inList=false;}html+=`<h4>${inline(ln.replace(/^##\s*/,""))}</h4>`;continue;}
     if(/^-\s/.test(ln)){if(!inList){html+="<ul>";inList=true;}html+=`<li>${inline(ln.replace(/^-\s*/,""))}</li>`;continue;}
@@ -212,6 +218,9 @@ function render(D){
     let th="";(r._prov||[]).forEach(p=>th+=`<div class="turn ${p.role}"><div class="who">${p.role}</div><div class="txt">${esc(p.content)}</div></div>`);
     card.innerHTML=`<div class="rec-top"><span class="badge"><span class="sw"></span>${r.type}</span><div class="rec-content">${esc(r.content)}</div><div class="rec-meta"><span>saved ${ftime(r.created)}</span><span>${(r.source_ids||[]).length} evidence turns</span><span style="opacity:.7">id ${(r.id||"").slice(0,8)}</span></div></div><details class="prov"><summary><span class="chev">▸</span> Provenance — ${(r._prov||[]).length} turns</summary><div class="thread">${th}</div></details>`;
     rw.appendChild(card);});
+  const rc=(D.records||[]).length;
+  rw.classList.toggle("scroll",rc>5);
+  $("rec-count").textContent=rc>5?`${rc} records · scroll within ↓`:(rc?`${rc} record${rc>1?"s":""}`:"");
   $("selfmodel").innerHTML=`<h3>L4 · Self-model</h3>`+renderSelf(D.profile);
   $("selfview-txt").textContent=(D.status&&D.status.status)||"—";
   $("selfview-cap").textContent=D.status&&D.status.updated?"updated "+ftime(D.status.updated):"";

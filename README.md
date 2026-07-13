@@ -61,6 +61,8 @@ Directly from the five-layer verdict ledger:
 | Active reinterpretation on retrieval | | |
 | **Selective intervention** | | |
 
+> _Update (2026-07): the co-emergent self-model (L4) has since been implemented under a grounding discipline — see [IMPLEMENTATION.md](./IMPLEMENTATION.md). It evolves, but is still not "solved." (Conversely, of the "build now" items, salience scoring remains a neutral stub in the implementation.)_
+
 ---
 
 ## Files

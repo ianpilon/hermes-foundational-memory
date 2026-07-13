@@ -122,6 +122,9 @@ agent-memory-spec.md      the build spec this implements
   **not** a head-to-head vs Generative Agents / MemGPT.
 - We proved **safety** is model-agnostic; we did **not** prove *quality* is — recall is model-limited.
 - L3 (topic tracks) is unbuilt; the self-model proposer is currently local-only (a cloud-model proposer is the next step).
+- Not every "build now" item from the spec is fully built: **salience scoring** is still a neutral stub (records carry
+  placeholder `valence/arousal` fields, no classifier yet), and L2 reconciliation is minimal dedup. So this leapt ahead
+  to the hardest stubbed layer (the self-model) while leaving a couple of shippable items stubbed.
 
 ---
 

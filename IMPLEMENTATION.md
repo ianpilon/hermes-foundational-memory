@@ -61,9 +61,11 @@ Full write-up: **[NOVELTY.md](./NOVELTY.md)**.
 
 ## Evidence
 
-**Invariant QA — 15/15** ([`tests/qa_self_model.py`](./tests/qa_self_model.py)): ungrounded claim rejected in
+**Invariant QA — 17/17** ([`tests/qa_self_model.py`](./tests/qa_self_model.py)): ungrounded claim rejected in
 code; corroboration gating (single-source held / breadth promotes / recurrence promotes); garbage-in doesn't
-crash; kill-switch; hand-written self-model never overwritten; full provenance chain intact.
+crash; kill-switch; hand-written self-model never overwritten; full provenance chain intact; **evidence-cited
+records are un-forgettable, and forgetting is a reversible, L1-preserving, logged tombstone** (see *Forgetting
+discipline* below).
 
 **Agnosticism sweep** ([`tests/agnosticism_sweep.py`](./tests/agnosticism_sweep.py)) — identical self-model pass
 across 5 local models × 2 samples on identical records:
@@ -81,6 +83,42 @@ across 5 local models × 2 samples on identical records:
 
 ---
 
+## Forgetting discipline (2026-07-15)
+
+Forgetting is part of *memory as construction*, not a violation of it — the spec names it (§3,
+`memory_delete`). But the original `_delete_records` did it the wrong way: it let the **proposer dispose**.
+On a hard rewrite of `records.jsonl`, a weak proposer (our local qwen) could drop a record with **no reason,
+no log, and — critically — no protection for records that a promoted self-fact cites as evidence.** That last
+one can silently sever the `self-fact → L2 record → L1 turn` chain this whole system claims is *impossible by
+construction*. Auditing the live bank, we found the path had already fired (1 of 4 cycles deleted a record,
+`reason: null`) during the exact cycle the agent settled on the name **"Pal"** — one record away from
+un-grounding its own identity. The chain held by luck, not by construction.
+
+**The fix makes forgetting obey the same "scaffold disposes" rule as everything else:**
+
+- **L1 is untouchable.** Forgetting only ever reshapes the constructed layer (L2). `raw.jsonl` — the ground
+  truth anything can be rebuilt from — is never rewritten. So a forget is *reconstruction of the working set*,
+  not destruction.
+- **Tombstone, not hard-drop.** A forgotten record is marked (`forgotten: {ts, reason}`) and withheld from the
+  working set (search / recent / retrieval / self-model evidence) but retained on disk — reversible and auditable.
+- **Provenance is un-forgettable.** The scaffold refuses to forget any record cited as self-model evidence
+  (`_cited_record_ids`). The proposer may *ask*; the scaffold *decides*. This is the guarantee, enforced.
+- **Forgetting is observable, like silence.** The reason and any refusals now flow into the decision log
+  (`cycles.jsonl`) — closing the gap where we logged *why memory stayed silent* but not *why it forgot*.
+
+Proven by two new invariants (TF1: evidence-cited records are refused forgetting; TF2: forgetting is a
+reversible, L1-preserving, logged tombstone).
+
+> **Inspiration — [Sanna](https://github.com/sanna-ai).** The lens came from Sanna, an open-source governance
+> layer for AI agents: *gate risky actions at the boundary before they execute, and make every governance
+> decision observable.* Applying that lens to our forget path is what surfaced the un-grounding hole. We took
+> the **idea**, not the machinery — Sanna's signed "constitution" files and Ed25519 receipts are built to prove
+> good behavior to *third parties who don't trust you*; a single-user agent on your own Mac mini has no such
+> party, so that overhead isn't warranted here. The governance simply became one more invariant in the scaffold
+> that was already disposing everything else.
+
+---
+
 ## Quickstart
 
 Assumes a working agent host with a local model runner (Ollama) and a memory-role model (default `qwen2.5:7b`).
@@ -90,7 +128,7 @@ Assumes a working agent host with a local model runner (Ollama) and a memory-rol
 ./install.sh                 # copies the plugin, seeds the self-model, flips memory.provider, verifies
 
 # prove the properties
-HERMES_HOME=~/.hermes python3 tests/qa_self_model.py          # 15/15 invariants
+HERMES_HOME=~/.hermes python3 tests/qa_self_model.py          # 17/17 invariants
 HERMES_HOME=~/.hermes python3 tests/agnosticism_sweep.py      # the model-agnosticism sweep
 
 # optional: live viewer (browser dashboard of the bank + decision log)
@@ -125,6 +163,9 @@ agent-memory-spec.md      the build spec this implements
 - Not every "build now" item from the spec is fully built: **salience scoring** is still a neutral stub (records carry
   placeholder `valence/arousal` fields, no classifier yet), and L2 reconciliation is minimal dedup. So this leapt ahead
   to the hardest stubbed layer (the self-model) while leaving a couple of shippable items stubbed.
+- **Tombstones grow `records.jsonl` monotonically** (forgetting retains, never erases). The right trade for a
+  single-machine agent where auditability beats bytes; if it ever matters, compact old tombstones into a separate
+  `forgotten.jsonl` — never by hard-deleting them.
 
 ---
 

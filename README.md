@@ -1,6 +1,8 @@
 # Hermes Foundational Memory
 
-> 🛠️ **Update — this spec is now implemented, tested, and running.** See **[IMPLEMENTATION.md](./IMPLEMENTATION.md)** for the working provider, the live viewer, the invariant QA (15/15), and a 5-model **model-agnosticism proof** (0 memory leaks across every proposer; recall model-dependent). Everything below remains the original thesis and reasoning, unchanged.
+> 🛠️ **Update — this spec is now implemented, tested, and running.** See **[IMPLEMENTATION.md](./IMPLEMENTATION.md)** for the working provider, the live viewer, the invariant QA (17/17), and a 5-model **model-agnosticism proof** (0 memory leaks across every proposer; recall model-dependent). Everything below remains the original thesis and reasoning, unchanged.
+>
+> 🔒 **Update (2026-07-15) — forgetting discipline.** Deletion is now scaffold-gated: records cited as self-model evidence are **un-forgettable**, forgetting is a **reversible, L1-preserving, logged tombstone** (not a hard delete by the proposer), and the *reason* for forgetting is recorded like silence already is. This closed a real hole — an audit found the old delete path had fired one record away from un-grounding the agent's own "I am Pal" self-model. The governance lens was inspired by [Sanna](https://github.com/sanna-ai) (the idea — gate actions at the boundary, make decisions observable — not its receipt/constitution machinery). Details in [IMPLEMENTATION.md → *Forgetting discipline*](./IMPLEMENTATION.md#forgetting-discipline-2026-07-15).
 
 A paste-ready spec for giving **Hermes** (an agent running on a Mac mini) a foundational memory — derived from and grounded in the *Memory as Construction* thesis.
 

@@ -623,12 +623,18 @@ class FoundationalMemoryProvider(MemoryProvider):
             "decision": "silent", "reminder": None, "reason": None, "status": None,
         }
 
-        # 1) deletes (invalidation) — spec §3 memory_delete
+        # 1) forgetting (invalidation) — spec §3 memory_delete; scaffold-gated + observable.
+        #    The proposer names ids AND a reason; the scaffold tombstones (never hard-drops),
+        #    refuses evidence-cited records, and never touches L1. Reason + refusals flow into
+        #    the cycle log so forgetting is as observable as silence (NOVELTY.md §3).
         del_ids = set(x for x in (plan.get("deletes") or []) if isinstance(x, str))
         if del_ids:
-            before = len(self._read_records())
-            self._delete_records(del_ids)
-            summary["deleted"] = max(0, before - len(self._read_records()))
+            reason = str(plan.get("delete_reason", "")).strip() or "sidecar plan (no reason given)"
+            res = self._forget_records(del_ids, reason)
+            summary["deleted"] = len(res["forgotten"])
+            summary["forgotten_ids"] = res["forgotten"]
+            summary["forget_refused"] = res["refused"]     # evidence-protected → surfaced, not silent
+            summary["forget_reason"] = reason if res["forgotten"] else None
 
         # 2) saves — typed, deduped, with provenance
         existing = {r.get("content", "").strip().lower() for r in self._read_records()}
@@ -736,7 +742,7 @@ class FoundationalMemoryProvider(MemoryProvider):
             "salience": {"valence": 0.0, "arousal": 0.0},
         }
 
-    def _read_records(self) -> List[Dict[str, Any]]:
+    def _read_records(self, include_forgotten: bool = False) -> List[Dict[str, Any]]:
         if not self._bank:
             return []
         out: List[Dict[str, Any]] = []
@@ -751,7 +757,12 @@ class FoundationalMemoryProvider(MemoryProvider):
                             continue
         except FileNotFoundError:
             pass
-        return out
+        if include_forgotten:
+            return out
+        # Tombstoned records are WITHHELD from construction (search/recent/retrieval,
+        # self-model evidence) but retained on disk — forgetting reshapes the working
+        # set, it does not erase. (spec §3/§4; NOVELTY.md "memory as construction")
+        return [r for r in out if not r.get("forgotten")]
 
     def _append_records(self, records: List[Dict[str, Any]]) -> None:
         try:
@@ -761,18 +772,50 @@ class FoundationalMemoryProvider(MemoryProvider):
         except Exception as e:
             logger.debug("foundational: append records failed: %s", e)
 
-    def _delete_records(self, ids: set) -> None:
-        """Rewrite L2 without the deleted ids (explicit forgetting, spec §3)."""
-        recs = self._read_records()
-        kept = [r for r in recs if r.get("id") not in ids]
-        if len(kept) == len(recs):
-            return
-        try:
-            with self._lock, (self._bank / _L2_RECORDS).open("w", encoding="utf-8") as fh:
-                for r in kept:
-                    fh.write(json.dumps(r, ensure_ascii=False) + "\n")
-        except Exception as e:
-            logger.debug("foundational: delete failed: %s", e)
+    def _cited_record_ids(self) -> set:
+        """L2 record ids currently load-bearing as self-model evidence — UN-FORGETTABLE.
+        Forgetting one of these would sever the self-fact -> L2 -> L1 chain that
+        NOVELTY.md guarantees "impossible by construction". The scaffold protects it;
+        we do NOT trust the proposer not to ask."""
+        cited: set = set()
+        for f in self._read_self_facts():
+            cited.update(f.get("evidence", []) or [])
+        return cited
+
+    def _forget_records(self, ids: set, reason: str = "") -> Dict[str, Any]:
+        """Explicit forgetting as CONSTRUCTION, not destruction (spec §3 memory_delete).
+
+        Scaffold-gated and reversible: records are tombstoned (marked ``forgotten``),
+        not dropped, so they leave the working set but stay auditable and recoverable.
+        L1 (raw.jsonl) is NEVER touched — it remains the ground truth anything can be
+        rebuilt from. Records cited as self-model evidence are REFUSED. The LLM proposes
+        the ids; the scaffold decides what is permissible. Returns a summary for the log."""
+        if not ids:
+            return {"forgotten": [], "refused": []}
+        protected = self._cited_record_ids()
+        recs = self._read_records(include_forgotten=True)
+        forgotten: List[str] = []
+        refused: List[str] = []
+        changed = False
+        for r in recs:
+            rid = r.get("id")
+            if rid not in ids or r.get("forgotten"):
+                continue
+            if rid in protected:                 # scaffold disposes: evidence chain is load-bearing
+                refused.append(rid)
+                continue
+            r["forgotten"] = {"ts": _now_iso(), "reason": (reason or "unspecified")[:200]}
+            forgotten.append(rid)
+            changed = True
+        if changed:
+            try:
+                with self._lock, (self._bank / _L2_RECORDS).open("w", encoding="utf-8") as fh:
+                    for r in recs:                # rewrite L2 in place; tombstones retained on disk
+                        fh.write(json.dumps(r, ensure_ascii=False) + "\n")
+            except Exception as e:
+                logger.debug("foundational: forget failed: %s", e)
+                return {"forgotten": [], "refused": refused, "error": str(e)}
+        return {"forgotten": forgotten, "refused": refused}
 
     def _recent_l1_ids(self, n: int = 2) -> List[str]:
         lines = self._read_l1_lines()[-n:]

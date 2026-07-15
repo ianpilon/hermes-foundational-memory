@@ -163,6 +163,38 @@ chain_ok = all(e in rec_by_id for e in f["evidence"]) and all(
 check("T8 provenance chain intact: self-fact -> real L2 record(s) -> real L1 turn(s)", chain_ok)
 shutil.rmtree(tmp, ignore_errors=True)
 
+# TF1 — FORGETTING is scaffold-gated: a record cited as self-model evidence is UN-FORGETTABLE.
+#       Proves the self-fact -> L2 -> L1 chain cannot be severed even if the proposer asks.
+p, bank, tmp = fresh()
+recs = add_records(p, [("fact", "Agent name Pal", ["L1p"]), ("event", "declared Pal", ["L1q"])])
+ids = [r["id"] for r in recs]
+mock_proposer(p, {"self_facts": [{"claim": "I am named Pal", "evidence": ids, "confidence": 1.0}]})
+p._sm_set_records_seen(0); p._run_self_model_pass()          # ids are now cited evidence
+res = p._forget_records(set(ids), reason="proposer asked to forget its own evidence")
+still_live = {r["id"] for r in p._read_records()}
+check("TF1 evidence-cited records are REFUSED forgetting (chain unbreakable by construction)",
+      res["forgotten"] == [] and set(res["refused"]) == set(ids) and set(ids) <= still_live,
+      f"forgotten={res['forgotten']} refused={res['refused']}")
+shutil.rmtree(tmp, ignore_errors=True)
+
+# TF2 — FORGETTING is construction, not destruction: tombstone (reversible), L1 untouched,
+#       and surfaced for the decision log so forgetting is as observable as silence.
+p, bank, tmp = fresh()
+recs = add_records(p, [("fact", "an ephemeral, uncited note", ["L1r"])])
+rid = recs[0]["id"]
+raw_before = open(os.path.join(bank, "raw.jsonl")).read()
+summary = p._apply_plan({"deletes": [rid], "delete_reason": "superseded"}, ["L1r"])
+live_ids = {r["id"] for r in p._read_records()}
+all_ids = {r["id"] for r in p._read_records(include_forgotten=True)}
+raw_after = open(os.path.join(bank, "raw.jsonl")).read()
+check("TF2 forgotten record is WITHHELD from the working set", rid not in live_ids)
+check("TF2b but retained on disk as a tombstone (reversible, not erased)", rid in all_ids)
+check("TF2c L1 (raw.jsonl) is NEVER touched by forgetting", raw_before == raw_after)
+check("TF2d forget is surfaced for the decision log (reason + count captured)",
+      summary.get("deleted") == 1 and summary.get("forget_reason") == "superseded",
+      f"deleted={summary.get('deleted')} forget_reason={summary.get('forget_reason')!r}")
+shutil.rmtree(tmp, ignore_errors=True)
+
 # ---------------------------------------------------------------------------
 if os.environ.get("QA_LIVE"):
     print("\n== Live-model tests (real proposers — slower) ==")

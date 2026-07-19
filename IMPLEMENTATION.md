@@ -61,11 +61,12 @@ Full write-up: **[NOVELTY.md](./NOVELTY.md)**.
 
 ## Evidence
 
-**Invariant QA — 17/17** ([`tests/qa_self_model.py`](./tests/qa_self_model.py)): ungrounded claim rejected in
+**Invariant QA — 26/26** ([`tests/qa_self_model.py`](./tests/qa_self_model.py)): ungrounded claim rejected in
 code; corroboration gating (single-source held / breadth promotes / recurrence promotes); garbage-in doesn't
 crash; kill-switch; hand-written self-model never overwritten; full provenance chain intact; **evidence-cited
-records are un-forgettable, and forgetting is a reversible, L1-preserving, logged tombstone** (see *Forgetting
-discipline* below).
+records are un-forgettable, and forgetting is a reversible, L1-preserving, logged tombstone**; **the
+user-commanded `memory_forget` tool previews before forgetting, refuses self-model-critical records unless the
+user explicitly forces it, and reports any belief it leaves unsupported** (see *Forgetting discipline* below).
 
 **Agnosticism sweep** ([`tests/agnosticism_sweep.py`](./tests/agnosticism_sweep.py)) — identical self-model pass
 across 5 local models × 2 samples on identical records:
@@ -106,8 +107,28 @@ un-grounding its own identity. The chain held by luck, not by construction.
 - **Forgetting is observable, like silence.** The reason and any refusals now flow into the decision log
   (`cycles.jsonl`) — closing the gap where we logged *why memory stayed silent* but not *why it forgot*.
 
-Proven by two new invariants (TF1: evidence-cited records are refused forgetting; TF2: forgetting is a
+Proven by two invariants (TF1: evidence-cited records are refused forgetting; TF2: forgetting is a
 reversible, L1-preserving, logged tombstone).
+
+**Autonomous vs. commanded forgetting.** The above governs the *autonomous* sidecar — qwen deciding on its own,
+every `cycle_interval` turns. That cadence is deliberate: forgetting is consolidation (retrospective, not
+time-sensitive), and running the riskiest proposer operation *less* often is a feature. But a user saying
+"forget the card number I gave you" should be honored *immediately*, not left to the sidecar — so that case gets
+its own explicit tool, **`memory_forget`**, callable by the action agent (Pal) on the user's behalf:
+
+- **Two steps: preview → commit.** Called with a `query`, it *previews* matching records and forgets nothing —
+  Pal shows the user what matched and confirms. Called with `ids`, it commits the forget. This stops a fuzzy
+  match from nuking the wrong record.
+- **Same guard, reused.** A commanded forget runs through the identical `_forget_records` path — reversible
+  tombstone, L1 untouched, logged (as a `user_forget` event).
+- **User authority, with a brake.** Self-model-critical records (cited as evidence) are flagged in the preview
+  and *refused* on commit — unless the user explicitly confirms and Pal passes `force=true`. The user has
+  authority the autonomous proposer does not, but forcing it still tombstones (reversible) and **reports which
+  belief it left unsupported** — you can't keep "I am Pal" once you've erased every reason you had for it.
+
+Proven by TF3 (preview forgets nothing, flags critical records), TF4 (commanded forget is a logged, reversible
+tombstone), TF5 (commit refuses critical records without force; force honors the override and reports the
+now-unsupported belief).
 
 > **Inspiration — [Sanna](https://github.com/sanna-ai).** The lens came from Sanna, an open-source governance
 > layer for AI agents: *gate risky actions at the boundary before they execute, and make every governance
@@ -128,7 +149,7 @@ Assumes a working agent host with a local model runner (Ollama) and a memory-rol
 ./install.sh                 # copies the plugin, seeds the self-model, flips memory.provider, verifies
 
 # prove the properties
-HERMES_HOME=~/.hermes python3 tests/qa_self_model.py          # 17/17 invariants
+HERMES_HOME=~/.hermes python3 tests/qa_self_model.py          # 26/26 invariants
 HERMES_HOME=~/.hermes python3 tests/agnosticism_sweep.py      # the model-agnosticism sweep
 
 # optional: live viewer (browser dashboard of the bank + decision log)

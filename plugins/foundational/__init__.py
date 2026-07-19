@@ -151,6 +151,35 @@ RECENT_SCHEMA = {
     },
 }
 
+FORGET_SCHEMA = {
+    "name": "memory_forget",
+    "description": (
+        "Deliberately forget durable memory that the USER explicitly asked to forget (e.g. "
+        "'forget the card number I gave you'). This is a REVERSIBLE tombstone, not erasure. "
+        "TWO STEPS: (1) call with `query` to PREVIEW matching records — nothing is forgotten "
+        "yet; show the user what matched and get confirmation. (2) call with `ids` (from the "
+        "preview) to actually forget them. Records flagged `self_model_critical` are part of "
+        "who the agent is; the preview marks them and the commit step will REFUSE them unless "
+        "the user explicitly confirms and you pass `force: true`. Only ever triggered by a "
+        "user request — never use this to curate memory on your own."
+    ),
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "query": {"type": "string",
+                      "description": "PREVIEW step: what the user wants forgotten, in natural language."},
+            "ids": {"type": "array", "items": {"type": "string"},
+                    "description": "COMMIT step: record ids to forget, taken from a prior preview."},
+            "reason": {"type": "string",
+                       "description": "Brief reason, e.g. 'user asked to forget their card number'."},
+            "force": {"type": "boolean",
+                      "description": "Set true ONLY after the user confirms forgetting a "
+                                     "self_model_critical record."},
+        },
+        "required": [],
+    },
+}
+
 
 # ---------------------------------------------------------------------------
 # Sidecar prompt (Phase 1 + Phase 2 in one constrained JSON emission)
@@ -782,17 +811,24 @@ class FoundationalMemoryProvider(MemoryProvider):
             cited.update(f.get("evidence", []) or [])
         return cited
 
-    def _forget_records(self, ids: set, reason: str = "") -> Dict[str, Any]:
+    def _forget_records(self, ids: set, reason: str = "", allow_cited: bool = False) -> Dict[str, Any]:
         """Explicit forgetting as CONSTRUCTION, not destruction (spec §3 memory_delete).
 
         Scaffold-gated and reversible: records are tombstoned (marked ``forgotten``),
         not dropped, so they leave the working set but stay auditable and recoverable.
         L1 (raw.jsonl) is NEVER touched — it remains the ground truth anything can be
         rebuilt from. Records cited as self-model evidence are REFUSED. The LLM proposes
-        the ids; the scaffold decides what is permissible. Returns a summary for the log."""
+        the ids; the scaffold decides what is permissible. Returns a summary for the log.
+
+        ``allow_cited`` is the ONLY way past the self-model evidence guard, and it exists
+        solely for an EXPLICIT, user-confirmed forget (memory_forget force=true) — the user
+        has authority the autonomous proposer does not. The autonomous sidecar never sets it,
+        so its records-as-evidence stay unbreakable. Even a forced forget is a reversible
+        tombstone, and any self-fact left unsupported is reported back for the caller to surface."""
         if not ids:
             return {"forgotten": [], "refused": []}
-        protected = self._cited_record_ids()
+        cited = self._cited_record_ids()
+        protected = set() if allow_cited else cited
         recs = self._read_records(include_forgotten=True)
         forgotten: List[str] = []
         refused: List[str] = []
@@ -815,7 +851,17 @@ class FoundationalMemoryProvider(MemoryProvider):
             except Exception as e:
                 logger.debug("foundational: forget failed: %s", e)
                 return {"forgotten": [], "refused": refused, "error": str(e)}
-        return {"forgotten": forgotten, "refused": refused}
+        # If a forced forget removed evidence, name the self-facts now left unsupported so the
+        # caller can surface it (you can't keep believing something once you've erased every reason).
+        unsupported: List[str] = []
+        if forgotten:
+            gone = set(forgotten)
+            live = {r["id"] for r in self._read_records()}   # excludes tombstoned
+            for f in self._read_self_facts():
+                ev = set(f.get("evidence", []) or [])
+                if ev & gone and not (ev & live):            # every cited record now forgotten
+                    unsupported.append(f.get("claim", ""))
+        return {"forgotten": forgotten, "refused": refused, "unsupported_self_facts": unsupported}
 
     def _recent_l1_ids(self, n: int = 2) -> List[str]:
         lines = self._read_l1_lines()[-n:]
@@ -837,7 +883,7 @@ class FoundationalMemoryProvider(MemoryProvider):
     # -- tools (agent-facing navigation) ------------------------------------
 
     def get_tool_schemas(self) -> List[Dict[str, Any]]:
-        return [SAVE_SCHEMA, SEARCH_SCHEMA, RECENT_SCHEMA]
+        return [SAVE_SCHEMA, SEARCH_SCHEMA, RECENT_SCHEMA, FORGET_SCHEMA]
 
     def handle_tool_call(self, tool_name: str, args: Dict[str, Any], **kwargs) -> str:
         if not self._bank:
@@ -875,6 +921,49 @@ class FoundationalMemoryProvider(MemoryProvider):
             items = [{"id": r["id"], "type": r.get("type"), "content": r.get("content"),
                       "created": r.get("created")} for r in records]
             return json.dumps({"results": items, "count": len(items)})
+
+        if tool_name == "memory_forget":
+            # Deliberate, user-commanded forgetting. Two steps: preview (query) -> commit (ids).
+            ids = [str(i) for i in (args.get("ids") or []) if isinstance(i, (str, int))]
+            query = (args.get("query") or "").strip()
+            reason = (args.get("reason") or "user requested").strip()[:200]
+            force = bool(args.get("force"))
+
+            # COMMIT: ids present -> forget them now (reversible tombstone, guard reused).
+            if ids:
+                res = self._forget_records(set(ids), reason=reason, allow_cited=force)
+                self._log_cycle({"event": "user_forget", "forgotten": res["forgotten"],
+                                 "refused": res["refused"], "reason": reason, "forced": force})
+                out = {"forgotten": res["forgotten"], "refused": res["refused"],
+                       "reversible": True}
+                if res.get("refused"):
+                    out["note"] = ("Refused: these are part of the agent's self-model. Confirm with "
+                                   "the user, then call again with force=true to forget them anyway.")
+                elif res.get("unsupported_self_facts"):
+                    out["note"] = ("Forgotten. NOTE: this removed the evidence for these self-model "
+                                   "belief(s), now unsupported: " + "; ".join(res["unsupported_self_facts"]))
+                elif res["forgotten"]:
+                    out["note"] = "Forgotten (reversible tombstone; raw transcript untouched)."
+                else:
+                    out["note"] = "Nothing matched those ids (already forgotten or unknown)."
+                return json.dumps(out)
+
+            # PREVIEW: query present -> show candidates, forget NOTHING.
+            if query:
+                records = self._read_records()
+                if not records:
+                    return json.dumps({"matches": [], "note": "bank is empty — nothing to forget"})
+                scores = _bm25_lite(query, [r.get("content", "") for r in records])
+                ranked = sorted(zip(records, scores), key=lambda x: x[1], reverse=True)
+                cited = self._cited_record_ids()
+                matches = [{"id": r["id"], "type": r.get("type"), "content": r.get("content"),
+                            "self_model_critical": r["id"] in cited, "score": round(s, 3)}
+                           for r, s in ranked[:5] if s > 0]
+                return json.dumps({"matches": matches, "count": len(matches),
+                                   "note": ("PREVIEW only — nothing forgotten yet. Show the user these "
+                                            "matches, confirm, then call memory_forget with the chosen ids.")})
+
+            return _err("provide `query` to preview matches, or `ids` to forget")
 
         return _err(f"unknown tool: {tool_name}")
 

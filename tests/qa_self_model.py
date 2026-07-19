@@ -195,6 +195,62 @@ check("TF2d forget is surfaced for the decision log (reason + count captured)",
       f"deleted={summary.get('deleted')} forget_reason={summary.get('forget_reason')!r}")
 shutil.rmtree(tmp, ignore_errors=True)
 
+# TF3 — memory_forget PREVIEW: query returns candidates, forgets NOTHING, flags self-model-critical.
+p, bank, tmp = fresh()
+recs = add_records(p, [("fact", "My card number is 4242", ["L1s"]),
+                       ("fact", "Agent name Pal", ["L1t"]), ("event", "declared Pal", ["L1u"])])
+mock_proposer(p, {"self_facts": [{"claim": "I am named Pal",
+                                  "evidence": [recs[1]["id"], recs[2]["id"]], "confidence": 1.0}]})
+p._sm_set_records_seen(0); p._run_self_model_pass()          # recs[1],[2] become cited evidence
+prev = json.loads(p.handle_tool_call("memory_forget", {"query": "card number 4242"}))
+live_after_preview = {r["id"] for r in p._read_records()}
+card = [m for m in prev["matches"] if "4242" in m["content"]]
+check("TF3 preview returns the matching record and forgets NOTHING",
+      bool(card) and recs[0]["id"] in live_after_preview,
+      f"matches={[m['content'][:20] for m in prev['matches']]}")
+check("TF3b a non-critical record is NOT flagged self_model_critical", card and card[0]["self_model_critical"] is False)
+# previewing the identity records surfaces the self-model-critical flag
+prev2 = json.loads(p.handle_tool_call("memory_forget", {"query": "agent name Pal declared"}))
+pal_matches = [m for m in prev2["matches"] if m["id"] in {recs[1]["id"], recs[2]["id"]}]
+check("TF3c preview FLAGS self-model-critical records", pal_matches and all(m["self_model_critical"] for m in pal_matches),
+      f"pal_matches={[(m['content'][:16], m['self_model_critical']) for m in prev2['matches']]}")
+shutil.rmtree(tmp, ignore_errors=True)
+
+# TF4 — memory_forget COMMIT: a normal record is forgotten on command (reversible tombstone) + logged.
+p, bank, tmp = fresh()
+recs = add_records(p, [("fact", "My card number is 4242", ["L1v"])])
+rid = recs[0]["id"]
+res = json.loads(p.handle_tool_call("memory_forget", {"ids": [rid], "reason": "user asked"}))
+live = {r["id"] for r in p._read_records()}
+on_disk = {r["id"] for r in p._read_records(include_forgotten=True)}
+cyc = [json.loads(l) for l in open(os.path.join(bank, "cycles.jsonl"))] if os.path.exists(os.path.join(bank, "cycles.jsonl")) else []
+check("TF4 user-commanded forget removes the record from the working set",
+      res["forgotten"] == [rid] and rid not in live)
+check("TF4b but it is a reversible tombstone, retained on disk", rid in on_disk and res.get("reversible"))
+check("TF4c the user-forget is logged to cycles.jsonl", any(c.get("event") == "user_forget" for c in cyc))
+shutil.rmtree(tmp, ignore_errors=True)
+
+# TF5 — memory_forget COMMIT REFUSES a self-model-critical record unless force=true.
+p, bank, tmp = fresh()
+recs = add_records(p, [("fact", "Agent name Pal", ["L1w"]), ("event", "declared Pal", ["L1x"])])
+ids = [r["id"] for r in recs]
+mock_proposer(p, {"self_facts": [{"claim": "I am named Pal", "evidence": ids, "confidence": 1.0}]})
+p._sm_set_records_seen(0); p._run_self_model_pass()
+refused = json.loads(p.handle_tool_call("memory_forget", {"ids": ids, "reason": "test"}))
+still_live = {r["id"] for r in p._read_records()}
+check("TF5 commit REFUSES self-model-critical records without force (chain protected)",
+      refused["forgotten"] == [] and set(refused["refused"]) == set(ids) and set(ids) <= still_live)
+# force=true honors the explicit user override AND reports the now-unsupported belief.
+forced = json.loads(p.handle_tool_call("memory_forget", {"ids": ids, "reason": "user insists", "force": True}))
+live_after = {r["id"] for r in p._read_records()}
+on_disk_after = {r["id"] for r in p._read_records(include_forgotten=True)}
+raw_intact = os.path.exists(os.path.join(bank, "raw.jsonl"))
+check("TF5b force=true honors the user override (records forgotten, still tombstoned on disk)",
+      set(forced["forgotten"]) == set(ids) and not (set(ids) & live_after) and set(ids) <= on_disk_after)
+check("TF5c a forced forget reports the self-model belief it left unsupported",
+      "note" in forced and "unsupported" in forced["note"].lower(), f"note={forced.get('note')!r}")
+shutil.rmtree(tmp, ignore_errors=True)
+
 # ---------------------------------------------------------------------------
 if os.environ.get("QA_LIVE"):
     print("\n== Live-model tests (real proposers — slower) ==")
